@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./studyos.db"
     redis_url: str = ""  # empty = in-memory cache
     jwt_secret: str
-    jwt_expire_minutes: int = 60 * 24
+    jwt_expire_minutes: int = 60 * 24 * 30
     cors_origins: list[str] = ["http://localhost:3000"]
 
     azure_openai_endpoint: str = ""
