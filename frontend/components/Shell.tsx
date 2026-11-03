@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
-import { TOKEN_KEY } from "@/lib/api";
+import { post, TOKEN_KEY } from "@/lib/api";
 
 const NAV: { group: string; items: [string, string, string][] }[] = [
   { group: "Overview", items: [["/", "Dashboard", "⌂"]] },
@@ -46,26 +46,29 @@ export const useFocusMode = () => useContext(FocusContext);
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [focus, setFocus] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
-  const isLogin = pathname === "/login";
 
   useEffect(() => setNavOpen(false), [pathname]);
 
   useEffect(() => {
-    if (!isLogin && !localStorage.getItem(TOKEN_KEY)) router.replace("/login");
-    else setReady(true);
-  }, [isLogin, router]);
+    if (localStorage.getItem(TOKEN_KEY)) {
+      setReady(true);
+      return;
+    }
+    post<{ access_token: string }>("/auth/guest")
+      .then((res) => {
+        localStorage.setItem(TOKEN_KEY, res.access_token);
+        setReady(true);
+      })
+      .catch((e: Error) => setError(e.message));
+  }, []);
 
-  if (isLogin) return <main className="main page" style={{ margin: "0 auto" }}>{children}</main>;
-  if (!ready) return null;
+  if (error) return <main className="main page"><div className="error">Could not start session: {error}</div></main>;
+  if (!ready) return <main className="main page muted">Loading…</main>;
 
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    router.replace("/login");
-  };
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
   const path = pathname === "/" ? "" : pathname;
 
@@ -89,9 +92,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               </div>
             ))}
           </nav>
-          <div className="sidebar-foot">
-            <button className="ghost" style={{ width: "100%", justifyContent: "center" }} onClick={logout}>Log out</button>
-          </div>
         </aside>
         {navOpen && <div className="backdrop" onClick={() => setNavOpen(false)} />}
         <div className="content">

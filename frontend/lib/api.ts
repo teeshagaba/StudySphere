@@ -34,9 +34,10 @@ export async function api<T = unknown>(
     headers,
   });
 
-  if (res.status === 401 && !path.startsWith("/auth/login")) {
+  if (res.status === 401 && !path.startsWith("/auth/")) {
+    // Stale token: drop it so Shell creates a fresh guest session on reload.
     localStorage.removeItem(TOKEN_KEY);
-    window.location.href = "/login";
+    window.location.href = "/";
   }
 
   if (!res.ok) {

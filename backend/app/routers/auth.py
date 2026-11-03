@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+import secrets
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -57,6 +59,21 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(409, "Email already registered")
     user = User(email=email, name=body.name, password_hash=hash_password(body.password), xp=0)
+    db.add(user)
+    db.commit()
+    return _token(user)
+
+
+@router.post("/guest")
+async def guest(request: Request, db: Session = Depends(get_db)):
+    await enforce(request.client.host if request.client else "unknown", "guest", 30, 60 * 60)
+    user = User(
+        email=f"guest-{secrets.token_hex(8)}@guest.studysphere",
+        name="Guest",
+        # Random unusable password: guest accounts are token-only.
+        password_hash=await run_in_threadpool(hash_password, secrets.token_urlsafe(32)),
+        xp=0,
+    )
     db.add(user)
     db.commit()
     return _token(user)
