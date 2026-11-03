@@ -25,10 +25,10 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_token(user_id: int) -> str:
+def create_token(user_id: int, expire_minutes: int | None = None) -> str:
     payload = {
         "sub": str(user_id),
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=expire_minutes or settings.jwt_expire_minutes),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=_ALGO)
 

@@ -30,6 +30,13 @@ class RegisterIn(BaseModel):
             raise ValueError("Password too long")
         return v
 
+    @field_validator("email")
+    @classmethod
+    def _not_guest_domain(cls, v: str) -> str:
+        if v.lower().endswith(GUEST_DOMAIN):
+            raise ValueError("Invalid email")
+        return v
+
 
 class ProfileIn(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=120)
@@ -37,8 +44,17 @@ class ProfileIn(BaseModel):
     leetcode_handle: str | None = Field(None, pattern=HANDLE_PATTERN)
 
 
+GUEST_DOMAIN = "@guest.studysphere"
+GUEST_TOKEN_MINUTES = 60 * 24 * 30
+
+
+def _is_guest(user: User) -> bool:
+    return user.email.endswith(GUEST_DOMAIN)
+
+
 def _token(user: User) -> dict:
-    return {"access_token": create_token(user.id), "token_type": "bearer"}
+    minutes = GUEST_TOKEN_MINUTES if _is_guest(user) else None
+    return {"access_token": create_token(user.id, minutes), "token_type": "bearer"}
 
 
 def _profile(user: User) -> dict:
@@ -46,6 +62,7 @@ def _profile(user: User) -> dict:
         "id": user.id,
         "email": user.email,
         "name": user.name,
+        "is_guest": _is_guest(user),
         "xp": user.xp,
         "level": level_for(user.xp),
         "codeforces_handle": user.codeforces_handle,
@@ -68,13 +85,28 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
 async def guest(request: Request, db: Session = Depends(get_db)):
     await enforce(request.client.host if request.client else "unknown", "guest", 30, 60 * 60)
     user = User(
-        email=f"guest-{secrets.token_hex(8)}@guest.studysphere",
+        email=f"guest-{secrets.token_hex(8)}{GUEST_DOMAIN}",
         name="Guest",
         # Random unusable password: guest accounts are token-only.
         password_hash=await run_in_threadpool(hash_password, secrets.token_urlsafe(32)),
         xp=0,
     )
     db.add(user)
+    db.commit()
+    return _token(user)
+
+
+@router.post("/claim")
+async def claim(body: RegisterIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Turn the current guest into a real account, keeping all progress."""
+    if not _is_guest(user):
+        raise HTTPException(400, "Already a registered account")
+    email = body.email.lower()
+    if db.scalar(select(User).where(User.email == email)):
+        raise HTTPException(409, "Email already registered")
+    user.email = email
+    user.name = body.name
+    user.password_hash = await run_in_threadpool(hash_password, body.password)
     db.commit()
     return _token(user)
 

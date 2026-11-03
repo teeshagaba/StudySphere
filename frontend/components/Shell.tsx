@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
-import { post, TOKEN_KEY } from "@/lib/api";
+import { post, TOKEN_KEY, useApi } from "@/lib/api";
 
 const NAV: { group: string; items: [string, string, string][] }[] = [
   { group: "Overview", items: [["/", "Dashboard", "⌂"]] },
@@ -50,6 +50,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [focus, setFocus] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const me = useApi<{ name: string; is_guest: boolean }>(ready ? "/auth/me" : null);
 
   useEffect(() => setNavOpen(false), [pathname]);
 
@@ -69,6 +70,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   if (error) return <main className="main page"><div className="error">Could not start session: {error}</div></main>;
   if (!ready) return <main className="main page muted">Loading…</main>;
 
+  const logout = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    window.location.href = "/";
+  };
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
   const path = pathname === "/" ? "" : pathname;
 
@@ -92,6 +97,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               </div>
             ))}
           </nav>
+          {me.data && (
+            <div className="sidebar-foot stack">
+              {me.data.is_guest ? (
+                <>
+                  <div className="muted small">Guest session — save to keep your progress.</div>
+                  <Link href="/login" className="btn primary" style={{ width: "100%", justifyContent: "center" }}>Save progress</Link>
+                  <Link href="/login?mode=login" className="btn ghost" style={{ width: "100%", justifyContent: "center" }}>Log in</Link>
+                </>
+              ) : (
+                <>
+                  <div className="muted small">Signed in as {me.data.name}</div>
+                  <button className="ghost" style={{ width: "100%", justifyContent: "center" }} onClick={logout}>Log out</button>
+                </>
+              )}
+            </div>
+          )}
         </aside>
         {navOpen && <div className="backdrop" onClick={() => setNavOpen(false)} />}
         <div className="content">
