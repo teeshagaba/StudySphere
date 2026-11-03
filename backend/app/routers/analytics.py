@@ -71,7 +71,7 @@ def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db))
             select(func.count()).select_from(UserQuestion).where(
                 UserQuestion.user_id == user.id,
                 UserQuestion.status == "solved",
-                func.date(UserQuestion.solved_at) == today.isoformat(),
+                func.date(UserQuestion.solved_at) == today,
             )
         ),
         "streak": {"current": current, "longest": longest},
